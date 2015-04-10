@@ -89,6 +89,14 @@ class _vcf_metadata_parser(object):
             (?:,\s*Source="(?P<source>[^"]*)")?
             (?:,\s*Version="?(?P<version>[^"]*)"?)?
             >''', re.VERBOSE)
+        #DDD vcf files sometimes have INFO fields without Type
+        self.info_pattern2 = re.compile(r'''\#\#INFO=<
+            ID=(?P<id>[^,]+),\s*
+            Number=(?P<number>-?\d+|\.|[AGR]),\s*
+            Description="(?P<desc>[^"]*)"
+            (?:,\s*Source="(?P<source>[^"]*)")?
+            (?:,\s*Version="?(?P<version>[^"]*)"?)?
+            >''', re.VERBOSE)
         self.filter_pattern = re.compile(r'''\#\#FILTER=<
             ID=(?P<id>[^,]+),\s*
             Description="(?P<desc>[^"]*)"
@@ -123,16 +131,24 @@ class _vcf_metadata_parser(object):
     def read_info(self, info_string):
         '''Read a meta-information INFO line.'''
         match = self.info_pattern.match(info_string)
-        if not match:
+        if match:
+            num = self.vcf_field_count(match.group('number'))
+            info = _Info(match.group('id'), num,
+                     match.group('type'), match.group('desc'),
+                     match.group('source'), match.group('version'))
+        elif self.info_pattern2.match(info_string):
+            match = self.info_pattern2.match(info_string)
+            num = self.vcf_field_count(match.group('number'))
+            info = _Info(match.group('id'), num,
+                     "String", match.group('desc'),
+                     match.group('source'), match.group('version'))
+        else:
             raise SyntaxError(
                 "One of the INFO lines is malformed: %s" % info_string)
 
-        num = self.vcf_field_count(match.group('number'))
+        
 
-        info = _Info(match.group('id'), num,
-                     match.group('type'), match.group('desc'),
-                     match.group('source'), match.group('version'))
-
+        
         return (match.group('id'), info)
 
     def read_filter(self, filter_string):
